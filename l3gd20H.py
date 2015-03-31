@@ -52,16 +52,27 @@ class gyro:
 		# Low_ODR = 0 (low speed ODR disabled)
 		self.writeRegister(LOW_ODR, 0x00)
 
-		# FS = 00 (+/- 250 dps full scale)
-		self.writeRegister(CTRL4, 0x00)
+		self.setScale(245)
 
 		# DR = 01 (200 Hz ODR); BW = 10 (50 Hz bandwidth); PD = 1 (normal mode); Zen = Yen = Xen = 1 (all axes enabled)
 		self.writeRegister(CTRL1, 0x6F)
-
+	def setScale(self, scale):
+		# FS = 00 (+/- 245 dps full scale)
+		FS = 245
+		if scale == 245:
+			FS = 0x00
+		# TODO other scales
+		self.writeRegister(CTRL4, FS)
+		self.scale = scale
 	def readRegister(self, registerAddress):
 		return self.bus.read_byte_data(self.address, registerAddress)
 	def writeRegister(self, registerAddress, dataByte):
 		return self.bus.write_byte_data(self.address, registerAddress, dataByte)
+	def twoscomplement(self, value):
+		if (value & (1 << (16 - 1))):
+			return value - (1 << 16)
+		return value
+
 	def read(self):
 		xl = self.readRegister(OUT_X_L);
 		xh = self.readRegister(OUT_X_H);
@@ -70,8 +81,12 @@ class gyro:
 		zl = self.readRegister(OUT_Z_L);
 		zh = self.readRegister(OUT_Z_H);
 
-		x = xh << 8 | xl
-		y = yh << 8 | yl
-		z = zh << 8 | zl
-		return (x, y, z)
+		x = self.twoscomplement( xh << 8 | xl)
+		y = self.twoscomplement( yh << 8 | yl)
+		z = self.twoscomplement( zh << 8 | zl)
+		# max 32768
+		dpsX = x * self.scale / 32768
+		dpsY = y * self.scale / 32768
+		dpsZ = z * self.scale / 32768
+		return (dpsX, dpsY, dpsZ)
 
